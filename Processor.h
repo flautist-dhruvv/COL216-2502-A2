@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <iomanip>
 #include "Basics.h"
@@ -44,7 +45,6 @@ public:
     }
 
     void loadProgram(const std::string& filename) {
-        std::ifstream file(filename);
     }
 
     void flush() {};
