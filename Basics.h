@@ -33,11 +33,28 @@ struct ProcessorConfig {
 };
 
 struct ROBEntry {
-    // valid bit, ready bit, architectural register ID
-    // other fields as required
+    bool valid = false ;
+    bool ready = false ;
+    int dest_reg = -1; // -1 for branches and stores
+    int value = 0; // 0 for branches and stores
+     bool exception = false ;
+     int pc = -1; // default value -1 indicates that this entry is not occupied 
+     OpCode op;
+     bool taken = false ; // for branches, default value is false, will be set to true if branch is taken
+     int target_pc = -1; // for branches, the target PC if taken, for stores the value to be stored for other instructions it will be -1
+     int predicted_pc = -1 ; // for branches, the predicted target PC, for other instructions it will be -1
+     int store_addr = -1 ; // for stores, the memory address to store the value, for other instructions it will be -1
+     int store_value = 0 ; // for stores, the value to be stored, for other instructions it will be 0   
+     
 };
 
 struct RSEntry {
-    // value, tag, ready ... for both operands
-    // other fields as required
+    bool busy = false ; // tells whether this entry is occupied or not
+    OpCode op; // the operation to be performed
+    int vj = 0, vk = 0; // operands values
+    int qj = -1, qk = -1; // ROB tags (they will have value -1 if operands are ready)
+    int dest = -1; // ROB tag for destination register
+    int imm = 0; // immediate value for I type instrns
+    int pc = -1; // program counter of the instruction
+
 };
