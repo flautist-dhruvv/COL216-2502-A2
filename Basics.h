@@ -60,11 +60,11 @@ struct RSEntry {
 };
 
 struct PipeLineEntry {
-    bool valid;
-    int rob_tag;
+    bool valid = true;
+    int rob_tag = -1;
     OpCode op;
-    int val1, val2;
-    int imm;
-    int pc;
-    int cycles_remaining;
+    int val1 = 0, val2= 0;
+    int imm= 0;
+    int pc= -1;
+    int cycles_remaining= 0;
 };
