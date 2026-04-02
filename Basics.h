@@ -58,3 +58,13 @@ struct RSEntry {
     int pc = -1; // program counter of the instruction
 
 };
+
+struct PipeLineEntry {
+    bool valid;
+    int rob_tag;
+    OpCode op;
+    int val1, val2;
+    int imm;
+    int pc;
+    int cycles_remaining;
+};
