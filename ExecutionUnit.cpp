@@ -4,8 +4,7 @@ void ExecutionUnit::capture(int tag, int val){
 
     
     for (size_t i =0 ; i < rs.size(); i++){
-        RSEntry& entry =  rs[i];
-        
+        RSEntry& entry =  rs[i];        
         if (entry.busy == true) {
 
             if (entry.qj == tag){

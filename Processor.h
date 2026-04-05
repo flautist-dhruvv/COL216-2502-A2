@@ -44,9 +44,8 @@ public:
         // Load-Store Unit
     }
 
-    void loadProgram(const std::string& filename) {
-    }
-
+    void loadProgram(const std::string& filename) ;
+    
     void flush() {};
 
     void broadcastOnCDB() {};

@@ -15,7 +15,6 @@ public:
     bool has_result = false; // result flag
     bool has_exception = false; // exception flag
 
-    std::vector <RSEntry> rs;
     int rs_size; //Max RS entries it can hold
     std::vector<RSEntry> rs;
     std::vector <PipeLineEntry> pipeline;
@@ -38,8 +37,10 @@ public:
         rs_size = size;
         has_result= false;
         has_exception = false;
+
         result_val = 0;
         result_tag = -1;
+        
         rs.resize(rs_size);
     }
 
