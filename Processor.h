@@ -15,7 +15,9 @@ public:
     int clock_cycle;
 
     // pipeline registers
-
+    bool fetch_latch_valid = false ; // indicates whether the fetch latch is holding a valid instruction or not, this will be set to false when we flush the pipeline after a branch missprediction or an exception
+    Instruction fetched_inst ; // this will hold the instruction fetched in current cycle, it will be moved to decode latch in next cycle
+    int fetched_predicted_pc = -1; // this will hold the predicted PC for the fetched instruction
     std::vector<Instruction> inst_memory;
 
     // architectural state (do not change)
@@ -24,6 +26,12 @@ public:
     bool exception = false; // exception bit
 
     // register alias table / reorder buffer
+    std::vector<int> RAT; //defining the register alias table
+    std::vector<ROBEntry> ROB; // defining the reorder buffer
+    int rob_head = 0; // points to the oldest instruction in ROB
+    int rob_tail = 0; // points to the next free entry in ROB
+    int rob_count = 0; // number of instructions currently in ROB
+    // ROB is defined as a circular queue, so we will be using modulo arithmetic to update head and tail pointers
 
     std::vector<ExecutionUnit> units;
     LoadStoreQueue* lsq;
@@ -36,12 +44,20 @@ public:
         Memory.resize(config.mem_size);
 
         // Instantiate Hardware Units
-        // Adder
-        // Multiplier
-        // Divider
-        // Branch Computation
-        // Bitwise Logic
+        RAT.resize(config.num_regs, -1); // initialize RAT entries to -1 which indicates architectural register is not renamed
+        ROB.resize(config.rob_size); // initialize ROB entries with default constructor
+        rob_head = 0;
+        rob_tail = 0;
+        rob_count = 0;
+        
+        // we will use this constuctor ,ExecutionUnit(UnitType, latency, rs_size)
+        units.push_back(ExecutionUnit(UnitType::ADDER, config.add_lat, config.adder_rs_size)); // Adder
+        units.push_back(ExecutionUnit(UnitType::MULTIPLIER,config.mul_lat,config.mult_rs_size)); // Multiplier
+        units.push_back(ExecutionUnit(UnitType::DIVIDER,config.div_lat,config.div_rs_size)); // Divider
+        units.push_back(ExecutionUnit(UnitType::BRANCH,1,config.br_rs_size)); // Branch Computation, here I have assumed that branch computation latency is 1 cycle, we can change it if needed
+         units.push_back(ExecutionUnit(UnitType::LOGIC,config.logic_lat,config.logic_rs_size));// Bitwise Logic
         // Load-Store Unit
+        lsq= new LoadStoreQueue(config.mem_lat, config.lsq_rs_size);
     }
 
     void loadProgram(const std::string& filename) ;
@@ -50,16 +66,187 @@ public:
 
     void broadcastOnCDB() {};
 
-    void stageFetch() {};
+    void stageFetch() {
+        if( pc >= inst_memory.size() || fetch_latch_valid) {
+            return; // if there are no more instructions to fetch or the fetch latch is still holding the previous instruction, we cannot fetch a new instruction
+        }
+        fetched_inst = inst_memory[pc]; // fetching the instruction from instruction memory at current pc
+        fetch_latch_valid = true; // setting the fetch latch valid bit to indicate that we have a valid instruction in fetch latch
+       
+        // checking the instruction type and updating the pc accordingly
+        if(fetched_inst.op == OpCode::BEQ || fetched_inst.op == OpCode::BNE || fetched_inst.op == OpCode::BLT || fetched_inst.op == OpCode::BLE || fetched_inst.op == OpCode::J) {
+            int predicted_pc = bp.predict(pc, fetched_inst.imm, fetched_inst.op); // getting the predicted target pc from our branch predictor
+            fetched_predicted_pc = predicted_pc; 
+            pc = predicted_pc; // update the PC to the predicted PC for next fetch
+        }
+        else {
+            fetched_predicted_pc = pc + 1; // for non branch instructions, the predicted PC is simply the next sequential instruction
+            pc = pc + 1; // for non branch instructions, we can simply move to the next instruction
+        }
+    }
 
-    void stageDecode() {};
+
+    void stageDecode() {
+        // checking the stall conditions for decode stage
+        if (!fetch_latch_valid) return; 
+        if (rob_count == ROB.size()) return; 
+
+        // finding which unit this instr should go to based on its opcode
+        UnitType target_unit;
+        bool needs_rs = true; // as jump instructions don't need rs table
+        OpCode op = fetched_inst.op;
+
+        if (op == OpCode::ADD || op == OpCode::SUB || op == OpCode::ADDI || op == OpCode::SLT || op == OpCode::SLTI) {
+            target_unit = UnitType::ADDER;
+        } else if (op == OpCode::MUL) {
+            target_unit = UnitType::MULTIPLIER;
+        } else if (op == OpCode::DIV || op == OpCode::REM) {
+            target_unit = UnitType::DIVIDER;
+        } else if (op == OpCode::AND || op == OpCode::OR || op == OpCode::XOR || op == OpCode::ANDI || op == OpCode::ORI || op == OpCode::XORI) {
+            target_unit = UnitType::LOGIC;
+        } else if (op == OpCode::BEQ || op == OpCode::BNE || op == OpCode::BLT || op == OpCode::BLE) {
+            target_unit = UnitType::BRANCH;
+        } else if (op == OpCode::LW || op == OpCode::SW) {
+            target_unit = UnitType::LOADSTORE;
+        } else if (op == OpCode::J) {
+            needs_rs = false; // as jump instructions don't use execution units
+        }
+
+        // finding a free RS ,if needed
+        int rs_index = -1;
+        ExecutionUnit* ex_unit = nullptr;
+
+        if (needs_rs) {
+            if (target_unit == UnitType::LOADSTORE) {
+                // checking LSQ for a free spot (busy == false)
+                for (int i = 0; i < lsq->rs_size; i++) {
+                    if (!lsq->rs[i].busy) {
+                        rs_index = i;
+                        break;
+                    }
+                }
+            } else {
+                // checking standard units for a free spot
+                for (auto& u : units) {
+                    if (u.name == target_unit) {
+                        ex_unit = &u; // getting the pointer to the target execution unit so that we can later allocate the RS entry in that unit
+                         for (int i = 0; i < u.rs_size; i++) {
+                            if (!u.rs[i].busy) {
+                                rs_index = i;
+                                break;
+                            }
+                        }
+                        for (int i = 0; i < u.rs_size; i++) {
+                            if (!u.rs[i].busy) {
+                                rs_index = i;
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // if we needed an RS but couldn't find a free one, then we should STALL
+            if (rs_index == -1) return; 
+        }
+
+        // we are here means we have passed all the checks and we can proceed with decode and allocation
+
+        // allocating an ROb entry
+        int rob_idx = rob_tail;
+        ROB[rob_idx].valid = true;
+        ROB[rob_idx].ready = !needs_rs; // because Jumps are ready instantly
+        ROB[rob_idx].dest_reg = fetched_inst.dest; // for stores and branches, dest_reg will be -1, which is fine because they don't write to registers
+        ROB[rob_idx].op = fetched_inst.op;
+        ROB[rob_idx].pc = fetched_inst.pc;
+        ROB[rob_idx].predicted_pc = fetched_predicted_pc;
+        ROB[rob_idx].exception = false;
+        
+        // setting the target PC for branches,which is just the immediate (thanks to the python compiler)
+        if (op == OpCode::BEQ || op == OpCode::BNE || op == OpCode::BLT || op == OpCode::BLE) {
+            ROB[rob_idx].target_pc = fetched_inst.imm;
+        }
+        
+
+        // now we will allocate the RS entry if needed and fill it with the appropriate values, we will also do operand renaming here by looking at the RAT and ROB as needed
+        if (needs_rs) {
+            RSEntry* rs_entry = nullptr;
+            if (target_unit == UnitType::LOADSTORE) {
+                rs_entry = &lsq->rs[rs_index];
+            } else {
+                rs_entry = &ex_unit->rs[rs_index];
+            }
+
+            rs_entry->busy = true;
+            rs_entry->op = fetched_inst.op;
+            rs_entry->dest = rob_idx; // this is the tag to broadcast when done
+            rs_entry->pc = fetched_inst.pc;
+            rs_entry->imm = fetched_inst.imm;
+
+            //now we should resolve the source operands and do renaming if needed, we will look at the RAT to see if the source register is renamed, if it is renamed we will look at the ROB entry corresponding to that rename tag to see if the value is ready, if it is ready we will grab the value from ROB and put it in vj/vk, if it is not ready we will put the ROB tag in qj/qk to indicate that we are waiting for that value, if the source register is not renamed then we can directly grab the value from ARF and put it in vj/vk and set qj/qk to -1 to indicate that we are not waiting for any value for that operand
+            // resolving src1
+            if (fetched_inst.src1 == -1 || fetched_inst.src1 == 0) {  // if src1 is x0(which is immuatable 0) or no register(in case of immediates), we can directly set it to 0 and mark it as ready
+                rs_entry->vj = 0; 
+                rs_entry->qj = -1;
+            } else if (RAT[fetched_inst.src1] != -1) { // if src1 is renamed( if it is in RAT ), we need to check the ROB entry it is renamed to see if the value is ready
+                int dep_rob = RAT[fetched_inst.src1];
+                if (ROB[dep_rob].ready) {
+                    rs_entry->vj = ROB[dep_rob].value; // Grab value if already done!
+                    rs_entry->qj = -1;
+                } else {
+                    rs_entry->qj = dep_rob; // Otherwise, wait for tag
+                }
+            } else { // if src1 is not renamed, we can directly grab the value from ARF
+                rs_entry->vj = ARF[fetched_inst.src1];
+                rs_entry->qj = -1;
+            }
+
+            // similarly for src2
+            if (fetched_inst.src2 == -1 || fetched_inst.src2 == 0) { 
+                rs_entry->vk = 0; 
+                rs_entry->qk = -1;
+            } else if (RAT[fetched_inst.src2] != -1) {
+                int dep_rob = RAT[fetched_inst.src2];
+                if (ROB[dep_rob].ready) {
+                    rs_entry->vk = ROB[dep_rob].value; 
+                    rs_entry->qk = -1;
+                } else {
+                    rs_entry->qk = dep_rob; 
+                }
+            } else {
+                rs_entry->vk = ARF[fetched_inst.src2];
+                rs_entry->qk = -1;
+            }
+        }
+
+        // updating RAT,if needed
+        if (fetched_inst.dest != -1 && fetched_inst.dest != 0) {
+            RAT[fetched_inst.dest] = rob_idx;
+        }
+
+        // incrementing the ROB tail and count
+        rob_tail = (rob_tail + 1) % ROB.size();
+        rob_count++;
+        fetch_latch_valid = false; // clear the fetch latch for next instruction
+    }
+
 
     void stageExecuteAndBroadcast() {};
 
     void stageCommit() {};
 
     bool step() {
+        if(pc >= inst_memory.size() && rob_count == 0 && !fetch_latch_valid) {
+            return false; // no more instructions to fetch and ROB is empty, we can stop the simulation
+        }
         clock_cycle++;
+        // we call stages in reverse order because we want the effect of each stage to be visible in the next stage in the same cycle, for example when an instruction is committed in stageCommit, we want to see its effect in stageDecode of the same cycle, if we call stageCommit at the end of step function, then we will only see its effect in the next cycles stage, which is not what we want
+        stageCommit();
+        stageExecuteAndBroadcast();
+        stageDecode();
+        stageFetch();
+
         return true; // return false if CPU has no more to do after this cycle
     }
 
