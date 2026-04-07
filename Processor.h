@@ -112,6 +112,8 @@ public:
                         p.capture(u.result_tag,u.result_val);
                     }
                     lsq->capture(u.result_tag,u.result_val);  
+                    u.has_result = false; // two fixes ,that I missed initially
+                    u.has_exception = false;
                 }   
             }
         }
@@ -137,7 +139,10 @@ public:
                         p.capture(lsq->result_tag,lsq->result_val);
                     }
                     lsq->capture(lsq->result_tag,lsq->result_val);
-                }  
+                }
+                    lsq->has_result = false; //two fixes that I missed initially
+                    lsq->has_exception = false;
+                
             }
         }
     };
@@ -305,7 +310,13 @@ public:
     }
 
 
-    void stageExecuteAndBroadcast() {};
+    void stageExecuteAndBroadcast() {
+        // we will command all hardware units to forward by one cycle, and then we will broadcast the results on CDB if any unit has finished execution in this cycle
+        for (auto& u : units) {
+            u.executeCycle();   }
+        lsq->executeCycle(Memory); // we need to pass the memory to the LSQ because it needs to perform memory operations for loads and stores
+        broadcastOnCDB(); // after we have forwarded all units by one cycle, we will broadcast the results on CDB if any unit has finished execution in this cycle
+    }
 
     void stageCommit() {
         if (rob_count == 0 || !ROB[rob_head].ready){
@@ -329,8 +340,8 @@ public:
             if (!was_correct){
                 pc = robEntry->value;
                 flush();
-                return;
-            }
+                 return; 
+                  }
         }
         else if (robEntry->op==OpCode::SW){
             Memory[robEntry->store_addr] = robEntry->store_value;
@@ -356,7 +367,24 @@ public:
         stageExecuteAndBroadcast();
         stageDecode();
         stageFetch();
-
+        //for debugging
+        std::cout << "Cycle " << std::setw(2) << clock_cycle 
+                  << " | PC: " << std::setw(2) << pc 
+                  << " | Fetch_Latch_Full: " << (fetch_latch_valid ? "YES" : "NO ")
+                  << " | ROB Count: " << rob_count 
+                  << " | RS Busy (Adder/Mul): ";
+        
+        // Count busy Reservation Stations to see if we are bottlenecking
+        int add_busy = 0, mul_busy = 0;
+        for (auto& u : units) {
+            if (u.name == UnitType::ADDER) {
+                for (int i = 0; i < u.rs_size; i++) if (u.rs[i].busy) add_busy++;
+            }
+            if (u.name == UnitType::MULTIPLIER) {
+                for (int i = 0; i < u.rs_size; i++) if (u.rs[i].busy) mul_busy++;
+            }
+        }
+        std::cout << add_busy << " / " << mul_busy << std::endl;
         return true; // return false if CPU has no more to do after this cycle
     }
 
