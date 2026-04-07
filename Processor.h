@@ -307,7 +307,44 @@ public:
 
     void stageExecuteAndBroadcast() {};
 
-    void stageCommit() {};
+    void stageCommit() {
+        if (rob_count == 0 || !ROB[rob_head].ready){
+            return;
+        }
+
+        ROBEntry* robEntry = &ROB[rob_head];
+        
+        if (robEntry ->exception){
+            pc = robEntry->pc;
+            exception = true;
+            flush();
+            return;
+        }
+        else if (robEntry->op==OpCode::BEQ || robEntry->op==OpCode::BNE || robEntry->op==OpCode::BLT || robEntry->op==OpCode::BLE){
+            
+            bool taken = (robEntry->value == robEntry->target_pc);
+            bool was_correct = (robEntry->predicted_pc == robEntry->value);
+            bp.update(robEntry->pc, robEntry->value, taken, was_correct);
+            
+            if (!was_correct){
+                pc = robEntry->value;
+                flush();
+                return;
+            }
+        }
+        else if (robEntry->op==OpCode::SW){
+            Memory[robEntry->store_addr] = robEntry->store_value;
+        }
+        else if (robEntry->dest_reg!=-1 && robEntry->dest_reg!=0){
+            ARF[robEntry->dest_reg]= robEntry->value;
+        }
+        if (robEntry->dest_reg != -1 && robEntry->dest_reg != 0 && RAT[robEntry->dest_reg] == rob_head) {
+            RAT[robEntry->dest_reg] = -1;
+        }
+        robEntry->valid = false;
+        rob_head = (rob_head + 1)% ROB.size();
+        rob_count--;
+    };
 
     bool step() {
         if(pc >= inst_memory.size() && rob_count == 0 && !fetch_latch_valid) {
