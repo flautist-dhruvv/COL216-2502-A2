@@ -55,7 +55,7 @@ public:
         units.push_back(ExecutionUnit(UnitType::MULTIPLIER,config.mul_lat,config.mult_rs_size)); // Multiplier
         units.push_back(ExecutionUnit(UnitType::DIVIDER,config.div_lat,config.div_rs_size)); // Divider
         units.push_back(ExecutionUnit(UnitType::BRANCH,1,config.br_rs_size)); // Branch Computation, here I have assumed that branch computation latency is 1 cycle, we can change it if needed
-         units.push_back(ExecutionUnit(UnitType::LOGIC,config.logic_lat,config.logic_rs_size));// Bitwise Logic
+        units.push_back(ExecutionUnit(UnitType::LOGIC,config.logic_lat,config.logic_rs_size));// Bitwise Logic
         // Load-Store Unit
         lsq= new LoadStoreQueue(config.mem_lat, config.lsq_rs_size);
     }
@@ -64,7 +64,7 @@ public:
     
     void flush() {};
 
-    void broadcastOnCDB() {};
+    void broadcastOnCDoB() {};
 
     void stageFetch() {
         if( pc >= inst_memory.size() || fetch_latch_valid) {
@@ -130,12 +130,6 @@ public:
                 for (auto& u : units) {
                     if (u.name == target_unit) {
                         ex_unit = &u; // getting the pointer to the target execution unit so that we can later allocate the RS entry in that unit
-                         for (int i = 0; i < u.rs_size; i++) {
-                            if (!u.rs[i].busy) {
-                                rs_index = i;
-                                break;
-                            }
-                        }
                         for (int i = 0; i < u.rs_size; i++) {
                             if (!u.rs[i].busy) {
                                 rs_index = i;
@@ -165,6 +159,9 @@ public:
         
         // setting the target PC for branches,which is just the immediate (thanks to the python compiler)
         if (op == OpCode::BEQ || op == OpCode::BNE || op == OpCode::BLT || op == OpCode::BLE) {
+            ROB[rob_idx].target_pc = fetched_inst.imm;
+        }
+        if (op == OpCode::J) {
             ROB[rob_idx].target_pc = fetched_inst.imm;
         }
         
