@@ -62,9 +62,40 @@ public:
 
     void loadProgram(const std::string& filename) ;
     
-    void flush() {};
+    void flush() {
+        //Clear fetch latch
+        fetch_latch_valid = false;
 
-    void broadcastOnCDoB() {};
+        //Clear all RS entries in every execution unit & Clear all pipeline entries in every execution unit
+        for (auto& u : units) {
+            for (int i = 0; i < u.rs_size; i++) {
+                u.rs[i].busy = false;
+            }
+            u.pipeline.clear();
+            u.pipeline.shrink_to_fit();
+        }
+
+        //Clear LSQ RS and pipeline
+        for (int i = 0 ; i < lsq->rs_size ; i++){
+            lsq->rs[i].busy = false;
+        }
+        lsq->pipeline.clear();
+        lsq->pipeline.shrink_to_fit();
+
+        //Clear the ROB
+        rob_head = 0;
+        rob_count = 0;
+        rob_tail = 0;
+
+        //Clear RAT
+        for (int i = 1 ; i<RAT.size(); i++){
+            RAT[i] = -1;
+        }
+
+
+    };
+
+    void broadcastOnCDB() {};
 
     void stageFetch() {
         if( pc >= inst_memory.size() || fetch_latch_valid) {
