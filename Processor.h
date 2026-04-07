@@ -95,7 +95,52 @@ public:
 
     };
 
-    void broadcastOnCDB() {};
+    void broadcastOnCDB() {
+        ROBEntry* robEntry;
+        for (auto& u : units) {
+            if (u.result_tag != -1){
+                robEntry = &ROB[u.result_tag];
+                if (u.has_result || u.has_exception){
+                    if (u.has_result){
+                        robEntry->value = u.result_val;
+                    }
+                    if (u.has_exception){
+                        robEntry->exception = true;
+                    }
+                    robEntry->ready = true;
+                    for (auto& p : units){
+                        p.capture(u.result_tag,u.result_val);
+                    }
+                    lsq->capture(u.result_tag,u.result_val);  
+                }   
+            }
+        }
+
+        if (lsq->result_tag != -1){
+            robEntry = &ROB[lsq->result_tag];
+            if (lsq->has_result || lsq->has_exception){
+                if (lsq->has_result){
+                    if (robEntry->op == OpCode::SW){
+                        robEntry->store_addr = lsq->store_addr;
+                        robEntry->store_value = lsq->store_data;
+                    }
+                    else{
+                        robEntry->value = lsq->result_val;
+                    }
+                }
+                if (lsq->has_exception){
+                    robEntry->exception = true;
+                }
+                robEntry->ready = true;
+                if (robEntry->op == OpCode::LW){
+                    for (auto& p : units){
+                        p.capture(lsq->result_tag,lsq->result_val);
+                    }
+                    lsq->capture(lsq->result_tag,lsq->result_val);
+                }  
+            }
+        }
+    };
 
     void stageFetch() {
         if( pc >= inst_memory.size() || fetch_latch_valid) {
