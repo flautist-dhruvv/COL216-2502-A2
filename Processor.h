@@ -381,10 +381,11 @@ public:
         clock_cycle++;
         // we call stages in reverse order because we want the effect of each stage to be visible in the next stage in the same cycle, for example when an instruction is committed in stageCommit, we want to see its effect in stageDecode of the same cycle, if we call stageCommit at the end of step function, then we will only see its effect in the next cycles stage, which is not what we want
         stageExecuteAndBroadcast();
-        stageCommit();
 
         stageDecode();
         stageFetch();
+        stageCommit();
+
 
         return true; // return false if CPU has no more to do after this cycle
     }
