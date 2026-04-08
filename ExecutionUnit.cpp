@@ -27,6 +27,7 @@ void ExecutionUnit::executeCycle(){
         PipeLineEntry& entry = pipeline[i];
 
         if (entry.valid == true && entry.cycles_remaining == 1){
+
             if (entry.op == OpCode::ADD){
                 long long res = entry.val1 + entry.val2;
                 if (res>2147483647 || res < -2147483648){
@@ -164,6 +165,9 @@ void ExecutionUnit::executeCycle(){
         if (entry.valid==true){
             entry.cycles_remaining-=1;
             if (entry.cycles_remaining==0){
+                rs[entry.rs_index].busy = false;
+                rs[entry.rs_index].executing = false;
+                
                 entry.valid = false;
             }
         }
@@ -176,11 +180,15 @@ void ExecutionUnit::executeCycle(){
     pipeline.end()
     );
 
+    
+}
+
+void ExecutionUnit::addNew(){
     int oldest = -1;
     int oldest_pc = INT_MAX;
 
     for (size_t i = 0; i < rs.size(); i++) {
-        if (rs[i].busy && rs[i].qj == -1 && rs[i].qk == -1) {
+        if (rs[i].busy && !rs[i].executing && rs[i].qj == -1 && rs[i].qk == -1) {
             if (rs[i].pc < oldest_pc) {
                 oldest_pc = rs[i].pc;
                 oldest = i;
@@ -188,11 +196,11 @@ void ExecutionUnit::executeCycle(){
         }
     }
 
-    if (oldest != -1 && pipeline.size()<latency){
+    if (oldest != -1 && int(pipeline.size())<latency){
         
         RSEntry& entry = rs[oldest];
+        entry.executing = true;
      
-        entry.busy=false;
         PipeLineEntry Pentry ;
         Pentry.op = entry.op;
 
@@ -202,7 +210,9 @@ void ExecutionUnit::executeCycle(){
         Pentry.rob_tag = entry.dest;
         Pentry.pc = entry.pc;
         Pentry.cycles_remaining = latency;
+        Pentry.valid = true;
 
+        Pentry.rs_index = oldest;
         pipeline.push_back(Pentry);
     }
 }

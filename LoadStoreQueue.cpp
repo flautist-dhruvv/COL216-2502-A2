@@ -31,7 +31,7 @@ void LoadStoreQueue::executeCycle(std::vector<int>& Memory){
             
             int addr = entry.val1 + entry.imm;
 
-            if (addr <0 || addr>=Memory.size()){
+            if (addr <0 || addr>=int(Memory.size())){
                 has_exception = true;
             }
 
@@ -54,6 +54,9 @@ void LoadStoreQueue::executeCycle(std::vector<int>& Memory){
         if (entry.valid==true){
             entry.cycles_remaining-=1;
             if (entry.cycles_remaining==0){
+                rs[entry.rs_index].busy = false;
+                rs[entry.rs_index].executing = false;
+                
                 entry.valid = false;
             }
         }
@@ -67,18 +70,35 @@ void LoadStoreQueue::executeCycle(std::vector<int>& Memory){
     pipeline.end()
     );
 
-    int idx=-1;
+}
+
+void LoadStoreQueue::addNew(){
+    int absolute_oldest = -1;
+    unsigned long long oldest_seq = ULLONG_MAX; // Use sequence instead of PC
+
+    // 1. Find the ABSOLUTE oldest instruction based on sequence number
     for (size_t i = 0; i < rs.size(); i++) {
-        if (rs[i].busy && rs[i].qj == -1 && rs[i].qk == -1) {
-            idx = i;
-            break;
+        if (rs[i].busy && !rs[i].executing) {
+            if (rs[i].seq_num < oldest_seq) { // Compare tickets!
+                oldest_seq = rs[i].seq_num;
+                absolute_oldest = i;
+            }
         }
     }
 
-    if (idx!=-1 && pipeline.size() < latency){
-        RSEntry& entry = rs[idx];
-     
-        entry.busy=false;
+    // 2. Check if the absolute oldest instruction is actually ready.
+    bool can_dispatch = false;
+    if (absolute_oldest != -1) {
+        // If it is NOT ready, we stall. We do not skip it.
+        if (rs[absolute_oldest].qj == -1 && rs[absolute_oldest].qk == -1) {
+            can_dispatch = true;
+        }
+    }
+
+    if (can_dispatch && int(pipeline.size()) < latency){
+        RSEntry& entry = rs[absolute_oldest];
+        entry.executing = true;
+
         PipeLineEntry Pentry ;
         Pentry.op = entry.op;
 
@@ -87,8 +107,10 @@ void LoadStoreQueue::executeCycle(std::vector<int>& Memory){
         Pentry.imm = entry.imm;
         Pentry.rob_tag = entry.dest;
         Pentry.pc = entry.pc;
-        Pentry.cycles_remaining = latency;
+        Pentry.cycles_remaining = latency ;
+        Pentry.rs_index = absolute_oldest;
 
         pipeline.push_back(Pentry);
     }
 }
+

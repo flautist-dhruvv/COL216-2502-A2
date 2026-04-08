@@ -47,4 +47,5 @@ public:
     
     void capture(int tag, int val);
     void executeCycle();
+    void addNew();
 };

@@ -1,31 +1,21 @@
-.data : 10 20 30 40 5 3 2 1
-addi x1, x0, 0
-addi x2, x0, 4
-lw x3, 0(x1)
-lw x4, 4(x1)
-add x5, x5, x3
-mul x6, x6, x4
-addi x1, x1, 1
-bne x1, x2, 2
-div x7, x5, x4
-rem x8, x5, x4
-sub x9, x5, x6
-and x10, x5, x6
-or x11, x5, x6
-xor x12, x5, x6
-andi x13, x5, 15
-ori x14, x5, 255
-xori x15, x5, 128
-slt x16, x5, x6
-slti x17, x5, 100
-sw x5, 0(x0)
-sw x6, 4(x0)
-beq x5, x6, 23
-addi x18, x0, 1
-blt x5, x6, 25
-addi x19, x0, 2
-ble x5, x6, 27
-addi x20, x0, 3
-j 29
-addi x21, x0, 999
-add x0, x0, x0
+.data : 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+addi x1 x1 8
+add x3 x0 x0
+add x4 x0 x0
+mul x5 x2 x1
+mul x6 x4 x1
+add x7 x3 x5
+add x8 x4 x5
+add x9 x3 x6
+lw x10 128(x7)
+lw x11 0(x8)
+lw x12 64(x9)
+mul x13 x11 x12
+add x13 x13 x10
+sw x13 128(x7)
+addi x4 x4 1
+blt x4 x1 3
+addi x3 x3 1
+blt x3 x1 2
+addi x2 x2 1
+blt x2 x1 1

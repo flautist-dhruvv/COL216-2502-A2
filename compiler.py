@@ -71,28 +71,28 @@ with open(sys.argv[1], "r") as file:
 
         if 'lw' in line or 'sw' in line:
 
-            parts = line.split(',')
-            sub_parts = parts[1].split('(')
+            parts = line.split()
+            sub_parts = parts[2].split('(')
 
             mem_label = sub_parts[0].strip()
 
             if mem_label in dit_mems:
-                res= parts[0].strip() + ', '+ str(dit_mems[mem_label]) + '('+ sub_parts[1]
+                res= parts[0].strip() + ' ' + parts[1].strip() + ' '+ str(dit_mems[mem_label]) + '('+ sub_parts[1]
             else:
-                res = parts[0].strip() + ', ' + mem_label + '(' + sub_parts[1]
+                res= parts[0].strip() + ' ' + parts[1].strip() + ' '+ mem_label + '('+ sub_parts[1]
 
             ouput.append(res)
         
         elif 'beq' in line or 'bne' in line or 'blt' in line or 'ble' in line:
-            parts = line.split(',')
+            parts = line.split()
 
-            inst_label = parts[2].strip()
+            inst_label = parts[3].strip()
 
             if inst_label in dit_insts:
-                res = parts[0].strip() + ', ' + parts[1].strip() + ', ' + str(dit_insts[inst_label])
+                res = parts[0].strip() + ' ' + parts[1].strip() + ' ' + parts[2].strip() + ' ' + str(dit_insts[inst_label])
             
             else:
-                res = parts[0].strip() + ', ' + parts[1].strip() + ', ' + inst_label
+                res = parts[0].strip() + ' ' + parts[1].strip() + ' ' + parts[2].strip() + ' ' + inst_label
 
             ouput.append(res)
 

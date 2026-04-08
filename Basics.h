@@ -56,6 +56,9 @@ struct RSEntry {
     int dest = -1; // ROB tag for destination register
     int imm = 0; // immediate value for I type instrns
     int pc = -1; // program counter of the instruction
+    bool executing = false;
+    unsigned long long seq_num = 0;
+
 
 };
 
@@ -67,4 +70,5 @@ struct PipeLineEntry {
     int imm= 0;
     int pc= -1;
     int cycles_remaining= 0;
+    int rs_index;
 };

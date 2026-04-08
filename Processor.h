@@ -31,6 +31,8 @@ public:
     int rob_head = 0; // points to the oldest instruction in ROB
     int rob_tail = 0; // points to the next free entry in ROB
     int rob_count = 0; // number of instructions currently in ROB
+    unsigned long long global_seq_num = 0;
+
     // ROB is defined as a circular queue, so we will be using modulo arithmetic to update head and tail pointers
 
     std::vector<ExecutionUnit> units;
@@ -54,7 +56,7 @@ public:
         units.push_back(ExecutionUnit(UnitType::ADDER, config.add_lat, config.adder_rs_size)); // Adder
         units.push_back(ExecutionUnit(UnitType::MULTIPLIER,config.mul_lat,config.mult_rs_size)); // Multiplier
         units.push_back(ExecutionUnit(UnitType::DIVIDER,config.div_lat,config.div_rs_size)); // Divider
-        units.push_back(ExecutionUnit(UnitType::BRANCH,1,config.br_rs_size)); // Branch Computation, here I have assumed that branch computation latency is 1 cycle, we can change it if needed
+        units.push_back(ExecutionUnit(UnitType::BRANCH,config.add_lat,config.br_rs_size)); // Branch Computation, here I have assumed that branch computation latency is 1 cycle, we can change it if needed
         units.push_back(ExecutionUnit(UnitType::LOGIC,config.logic_lat,config.logic_rs_size));// Bitwise Logic
         // Load-Store Unit
         lsq= new LoadStoreQueue(config.mem_lat, config.lsq_rs_size);
@@ -88,7 +90,7 @@ public:
         rob_tail = 0;
 
         //Clear RAT
-        for (int i = 1 ; i<RAT.size(); i++){
+        for (int i = 1 ; i<int(RAT.size()); i++){
             RAT[i] = -1;
         }
 
@@ -101,17 +103,18 @@ public:
             if (u.result_tag != -1){
                 robEntry = &ROB[u.result_tag];
                 if (u.has_result || u.has_exception){
+
                     if (u.has_result){
                         robEntry->value = u.result_val;
+                        for (auto& p : units){
+                            p.capture(u.result_tag,u.result_val);
+                        }
+                        lsq->capture(u.result_tag,u.result_val);  
                     }
                     if (u.has_exception){
                         robEntry->exception = true;
                     }
                     robEntry->ready = true;
-                    for (auto& p : units){
-                        p.capture(u.result_tag,u.result_val);
-                    }
-                    lsq->capture(u.result_tag,u.result_val);  
                     u.has_result = false; // two fixes ,that I missed initially
                     u.has_exception = false;
                 }   
@@ -129,17 +132,18 @@ public:
                     else{
                         robEntry->value = lsq->result_val;
                     }
-                }
-                if (lsq->has_exception){
-                    robEntry->exception = true;
-                }
-                robEntry->ready = true;
-                if (robEntry->op == OpCode::LW){
+                    if (robEntry->op == OpCode::LW){
                     for (auto& p : units){
                         p.capture(lsq->result_tag,lsq->result_val);
                     }
                     lsq->capture(lsq->result_tag,lsq->result_val);
                 }
+                }
+                if (lsq->has_exception){
+                    robEntry->exception = true;
+                }
+                robEntry->ready = true;
+                
                     lsq->has_result = false; //two fixes that I missed initially
                     lsq->has_exception = false;
                 
@@ -148,7 +152,7 @@ public:
     };
 
     void stageFetch() {
-        if( pc >= inst_memory.size() || fetch_latch_valid) {
+        if( pc >= int (inst_memory.size()) || fetch_latch_valid) {
             return; // if there are no more instructions to fetch or the fetch latch is still holding the previous instruction, we cannot fetch a new instruction
         }
         fetched_inst = inst_memory[pc]; // fetching the instruction from instruction memory at current pc
@@ -170,7 +174,7 @@ public:
     void stageDecode() {
         // checking the stall conditions for decode stage
         if (!fetch_latch_valid) return; 
-        if (rob_count == ROB.size()) return; 
+        if (rob_count == int(ROB.size())) return; 
 
         // finding which unit this instr should go to based on its opcode
         UnitType target_unit;
@@ -238,6 +242,7 @@ public:
         ROB[rob_idx].predicted_pc = fetched_predicted_pc;
         ROB[rob_idx].exception = false;
         
+        
         // setting the target PC for branches,which is just the immediate (thanks to the python compiler)
         if (op == OpCode::BEQ || op == OpCode::BNE || op == OpCode::BLT || op == OpCode::BLE) {
             ROB[rob_idx].target_pc = fetched_inst.imm;
@@ -257,7 +262,10 @@ public:
             }
 
             rs_entry->busy = true;
+            rs_entry->executing = false;
             rs_entry->op = fetched_inst.op;
+            rs_entry->seq_num = global_seq_num++;
+            
             rs_entry->dest = rob_idx; // this is the tag to broadcast when done
             rs_entry->pc = fetched_inst.pc;
             rs_entry->imm = fetched_inst.imm;
@@ -306,6 +314,7 @@ public:
         // incrementing the ROB tail and count
         rob_tail = (rob_tail + 1) % ROB.size();
         rob_count++;
+
         fetch_latch_valid = false; // clear the fetch latch for next instruction
     }
 
@@ -316,9 +325,14 @@ public:
             u.executeCycle();   }
         lsq->executeCycle(Memory); // we need to pass the memory to the LSQ because it needs to perform memory operations for loads and stores
         broadcastOnCDB(); // after we have forwarded all units by one cycle, we will broadcast the results on CDB if any unit has finished execution in this cycle
+        for (auto& u: units){
+            u.addNew();
+        }
+        lsq->addNew();
     }
 
     void stageCommit() {
+
         if (rob_count == 0 || !ROB[rob_head].ready){
             return;
         }
@@ -352,50 +366,37 @@ public:
         if (robEntry->dest_reg != -1 && robEntry->dest_reg != 0 && RAT[robEntry->dest_reg] == rob_head) {
             RAT[robEntry->dest_reg] = -1;
         }
+ 
         robEntry->valid = false;
         rob_head = (rob_head + 1)% ROB.size();
         rob_count--;
     };
 
     bool step() {
-        if(pc >= inst_memory.size() && rob_count == 0 && !fetch_latch_valid) {
+        if (exception) return false; //bug  wasn't halt after an exception
+
+        if(pc >= int(inst_memory.size()) && rob_count == 0 && !fetch_latch_valid) {
             return false; // no more instructions to fetch and ROB is empty, we can stop the simulation
         }
         clock_cycle++;
         // we call stages in reverse order because we want the effect of each stage to be visible in the next stage in the same cycle, for example when an instruction is committed in stageCommit, we want to see its effect in stageDecode of the same cycle, if we call stageCommit at the end of step function, then we will only see its effect in the next cycles stage, which is not what we want
-        stageCommit();
         stageExecuteAndBroadcast();
+        stageCommit();
+
         stageDecode();
         stageFetch();
-        //for debugging
-        std::cout << "Cycle " << std::setw(2) << clock_cycle 
-                  << " | PC: " << std::setw(2) << pc 
-                  << " | Fetch_Latch_Full: " << (fetch_latch_valid ? "YES" : "NO ")
-                  << " | ROB Count: " << rob_count 
-                  << " | RS Busy (Adder/Mul): ";
-        
-        // Count busy Reservation Stations to see if we are bottlenecking
-        int add_busy = 0, mul_busy = 0;
-        for (auto& u : units) {
-            if (u.name == UnitType::ADDER) {
-                for (int i = 0; i < u.rs_size; i++) if (u.rs[i].busy) add_busy++;
-            }
-            if (u.name == UnitType::MULTIPLIER) {
-                for (int i = 0; i < u.rs_size; i++) if (u.rs[i].busy) mul_busy++;
-            }
-        }
-        std::cout << add_busy << " / " << mul_busy << std::endl;
+
         return true; // return false if CPU has no more to do after this cycle
     }
 
     void dumpArchitecturalState() {
         std::cout << "\n=== ARCHITECTURAL STATE (CYCLE " << clock_cycle << ") ===\n";
-        for (int i = 0; i < ARF.size(); i++) {
+        for (int i = 0; i < int(ARF.size()); i++) {
             std::cout << "x" << i << ": " << std::setw(4) << ARF[i] << " | ";
             if ((i+1) % 8 == 0) std::cout << std::endl;
         }
         if (exception) {
-            std::cout << "EXCEPTION raised by instruction " << pc + 1 << std::endl;
+            std::cout << "EXCEPTION raised by instruction " << pc << std::endl;
         }
         std::cout << "Branch Predictor Stats: " << bp.correct_predictions << "/" << bp.total_branches << " correct.\n";
     }

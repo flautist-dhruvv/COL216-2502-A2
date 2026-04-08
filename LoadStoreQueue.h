@@ -58,4 +58,6 @@ public:
     
     void capture(int tag, int val);
     void executeCycle(std::vector<int>& Memory);
+
+    void addNew();
 };
