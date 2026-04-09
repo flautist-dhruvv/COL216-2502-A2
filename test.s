@@ -1,26 +1,12 @@
-.data : 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 2000 0 0 0 0
-addi x1 x0 1
-addi x2 x0 2
-addi x4 x0 56
-addi x8 x0 10000
-addi x6 x0 0
-addi x3 x4 0
-lw x7 0(x3)
-mul x5 x2 x3
-sub x5 x5 x1
-mul x9 x7 x8
-add x6 x6 x9
-rem x16 x6 x5
-sw x16 0(x3)
-div x6 x6 x5
-sub x3 x3 x1
-beq x3 x0 18
-mul x6 x6 x3
-j 6
-div x11 x6 x8
-add x11 x11 x15
-sw x11 58(x10)
-add x10 x10 x1
-rem x15 x6 x8
-addi x4 x4 -14
-blt x0 x4 4
+.data : 0 0 0 0 0
+addi x1 x0 100
+addi x2 x0 200
+addi x3 x0 300
+sw x1 0(x0)
+sw x2 1(x0)
+sw x3 2(x0)
+lw x4 0(x0)
+lw x5 1(x0)
+lw x6 2(x0)
+add x7 x4 x5
+add x8 x7 x6

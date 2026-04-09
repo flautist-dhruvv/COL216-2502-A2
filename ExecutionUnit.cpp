@@ -29,18 +29,21 @@ void ExecutionUnit::executeCycle(){
         if (entry.valid == true && entry.cycles_remaining == 1){
 
             if (entry.op == OpCode::ADD){
-                long long res = entry.val1 + entry.val2;
+                long long res =(long long) entry.val1 + entry.val2;
                 if (res>2147483647 || res < -2147483648){
                     has_exception = true;
                 }
                 else{
+
+                    std::cout << "whatf" <<std::endl;
+
                     result_val = res;
                     has_result = true;
                 }
 
             }
             else if (entry.op == OpCode::SUB){
-                long long res = entry.val1 - entry.val2;
+                long long res = (long long) entry.val1 - entry.val2;
                 if (res>2147483647 || res < -2147483648){
                     has_exception = true;
                 }
@@ -50,7 +53,7 @@ void ExecutionUnit::executeCycle(){
                 }
             }
             else if (entry.op == OpCode::ADDI){
-                long long res = entry.val1 + entry.imm;
+                long long res = (long long) entry.val1 + entry.imm;
                 if (res>2147483647 || res < -2147483648){
                     has_exception = true;
                 }
@@ -60,7 +63,7 @@ void ExecutionUnit::executeCycle(){
                 }
             }
             else if (entry.op == OpCode::MUL){
-                long long res = entry.val1 * entry.val2;
+                long long res = (long long) entry.val1 * entry.val2;
                 if (res>2147483647 || res < -2147483648){
                     has_exception = true;
                 }

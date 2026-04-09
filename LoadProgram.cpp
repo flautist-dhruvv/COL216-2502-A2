@@ -41,7 +41,7 @@ void Processor::loadProgram(const std::string& filename) {
             inst.src1 = std::stoi(rs1.substr(1));
             inst.src2 = std::stoi(rs2.substr(1));
             inst.imm = 0;
-            inst.pc = inst_memory.size() + 1;
+            inst.pc = inst_memory.size();
 
             inst_memory.push_back(inst);
         }

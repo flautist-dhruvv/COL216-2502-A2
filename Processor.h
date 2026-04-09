@@ -397,7 +397,7 @@ public:
             if ((i+1) % 8 == 0) std::cout << std::endl;
         }
         if (exception) {
-            std::cout << "EXCEPTION raised by instruction " << pc << std::endl;
+            std::cout << "EXCEPTION raised by instruction " << pc + 1<< std::endl;
         }
         std::cout << "Branch Predictor Stats: " << bp.correct_predictions << "/" << bp.total_branches << " correct.\n";
     }
