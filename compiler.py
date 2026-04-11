@@ -112,7 +112,7 @@ with open(sys.argv[1], "r") as file:
             ouput.append(line)
 
 
-with open(sys.argv[1], 'w') as file:
+with open(sys.argv[2], 'w') as file:
 
     v = len(vals)
     if v!=0:

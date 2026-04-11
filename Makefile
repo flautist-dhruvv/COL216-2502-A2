@@ -21,6 +21,6 @@ compile:
 # Example below assumes a Python script named 'compiler.py'.
 run:
 	@echo "Preprocessing $(FILE)..."
-	python3 compiler.py $(FILE)
+	python3 compiler.py $(FILE) output.txt
 	@echo "Preprocessing complete."
-	./main.exe test.s
+	./main.exe output.txt
