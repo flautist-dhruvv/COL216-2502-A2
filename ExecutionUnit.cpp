@@ -35,8 +35,6 @@ void ExecutionUnit::executeCycle(){
                 }
                 else{
 
-                    std::cout << "whatf" <<std::endl;
-
                     result_val = res;
                     has_result = true;
                 }

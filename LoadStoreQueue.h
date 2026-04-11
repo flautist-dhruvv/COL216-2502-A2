@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <climits>
 #include "Basics.h"
 
 class LoadStoreQueue {

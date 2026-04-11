@@ -23,3 +23,4 @@ run:
 	@echo "Preprocessing $(FILE)..."
 	python3 compiler.py $(FILE)
 	@echo "Preprocessing complete."
+	./main.exe test.s
