@@ -1,12 +1,9 @@
-.data : 0 0 0 0 0
-addi x1 x0 100
-addi x2 x0 200
-addi x3 x0 300
+.data : 0
+addi x1 x0 7
+addi x10 x0 1
+div x5 x10 x10
 sw x1 0(x0)
-sw x2 1(x0)
-sw x3 2(x0)
-lw x4 0(x0)
-lw x5 1(x0)
-lw x6 2(x0)
-add x7 x4 x5
-add x8 x7 x6
+lw x2 0(x0)
+addi x2 x2 3
+sw x2 0(x0)
+lw x3 0(x0)

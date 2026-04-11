@@ -19,7 +19,7 @@ void LoadStoreQueue::capture(int tag, int val){
     }
 }
 
-void LoadStoreQueue::executeCycle(std::vector<int>& Memory){
+void LoadStoreQueue::executeCycle(std::vector<int>& Memory , std::vector <ROBEntry>&ROB, int rob_head, int rob_count){
 
     has_result = false;
     has_exception = false;
@@ -30,46 +30,79 @@ void LoadStoreQueue::executeCycle(std::vector<int>& Memory){
         if (entry.valid == true && entry.cycles_remaining == 1){
             
             int addr = entry.val1 + entry.imm;
+            bool current_inst_exception = false; // LOCAL flag for this specific instruction
 
-            if (addr <0 || addr>=int(Memory.size())){
+            // 1. BOUNDS CHECK
+            if (addr < 0 || addr >= int(Memory.size())){
+                current_inst_exception = true;
+            }
+
+            if (current_inst_exception) {
+                // If address is bad, update the ROB immediately so it can halt the CPU at commit
+                ROB[entry.rob_tag].exception = true;
+                ROB[entry.rob_tag].ready = true;
+                
+                // Alert the CDB
                 has_exception = true;
+                result_tag = entry.rob_tag;
             }
+            else {
+                // Address is safe! Proceed with Memory/ROB logic
+                if (entry.op == OpCode::LW) {
+                    bool forwarded = false;
+                    int val = 0;
 
-            if (!has_exception){
+                    // CIRCULAR BUFFER SEARCH: Start from rob_head
+                    for (int offset = 0; offset < rob_count; offset++) {
+                        int idx = (rob_head + offset) % ROB.size();
+                        
+                        if (idx == entry.rob_tag) break; 
 
-                if (entry.op==OpCode::LW){
-                    result_val = Memory[addr];
+                        if (ROB[idx].op == OpCode::SW && ROB[idx].ready && ROB[idx].store_addr == addr) {
+                            forwarded = true;
+                            val = ROB[idx].store_value;
+                        }
+                    }
+
+                    // We passed the bounds check above, so Memory[addr] is 100% safe to call here
+                    ROB[entry.rob_tag].value = forwarded ? val : Memory[addr];
+                    ROB[entry.rob_tag].ready = true;
+
+                    // Expose to CDB so dependents can capture the loaded value
+                    has_result = true;
+                    result_val = ROB[entry.rob_tag].value; 
+                } 
+                else if (entry.op == OpCode::SW) {
+                    ROB[entry.rob_tag].store_addr = addr;
+                    ROB[entry.rob_tag].store_value = entry.val2;
+                    ROB[entry.rob_tag].ready = true;
+                    
+                    has_result = true; // Tell CDB it's done (though no value needs to be captured)
                 }
                 
-                else if (entry.op == OpCode::SW){
-                    store_addr = addr;
-                    store_data = entry.val2;
-                }
-                has_result = true;
+                result_tag = entry.rob_tag;
             }
-
-        result_tag = entry.rob_tag;
-
         }
-        if (entry.valid==true){
-            entry.cycles_remaining-=1;
-            if (entry.cycles_remaining==0){
-                rs[entry.rs_index].busy = false;
+
+        // Cycle decrement and RS cleanup
+        if (entry.valid == true){
+            entry.cycles_remaining -= 1;
+            if (entry.cycles_remaining == 0){
+                rs[entry.rs_index].busy = false; 
                 rs[entry.rs_index].executing = false;
-                
                 entry.valid = false;
             }
         }
     }
 
+    // Remove finished instructions from the pipeline
     pipeline.erase(
-    std::remove_if(pipeline.begin(), pipeline.end(),
-        [](const PipeLineEntry& n) {
-            return !n.valid;   
-        }),
-    pipeline.end()
+        std::remove_if(pipeline.begin(), pipeline.end(),
+            [](const PipeLineEntry& n) {
+                return !n.valid;   
+            }),
+        pipeline.end()
     );
-
 }
 
 void LoadStoreQueue::addNew(){

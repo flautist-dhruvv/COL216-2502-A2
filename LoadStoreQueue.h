@@ -36,9 +36,7 @@ public:
 
         result_val = 0;
         result_tag = -1;
-        
-        store_data = 0;
-        store_addr = -1;
+
     }
 
     LoadStoreQueue(int lat, int size){
@@ -58,7 +56,7 @@ public:
     }
     
     void capture(int tag, int val);
-    void executeCycle(std::vector<int>& Memory);
+    void executeCycle(std::vector<int>& Memory, std::vector<ROBEntry>&ROB, int rob_head, int rob_count);
 
     void addNew();
 };

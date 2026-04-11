@@ -121,32 +121,25 @@ public:
             }
         }
 
-        if (lsq->result_tag != -1){
+        if (lsq->result_tag != -1) {
             robEntry = &ROB[lsq->result_tag];
-            if (lsq->has_result || lsq->has_exception){
-                if (lsq->has_result){
-                    if (robEntry->op == OpCode::SW){
-                        robEntry->store_addr = lsq->store_addr;
-                        robEntry->store_value = lsq->store_data;
-                    }
-                    else{
-                        robEntry->value = lsq->result_val;
-                    }
-                    if (robEntry->op == OpCode::LW){
-                    for (auto& p : units){
-                        p.capture(lsq->result_tag,lsq->result_val);
-                    }
-                    lsq->capture(lsq->result_tag,lsq->result_val);
-                }
-                }
-                if (lsq->has_exception){
-                    robEntry->exception = true;
-                }
-                robEntry->ready = true;
+            if (lsq->has_result || lsq->has_exception) {
                 
-                    lsq->has_result = false; //two fixes that I missed initially
-                    lsq->has_exception = false;
-                
+                // We only need to broadcast to other units if it's a Load.
+                // Stores don't produce values for other instructions to capture.
+                if (lsq->has_result && robEntry->op == OpCode::LW) {
+                    for (auto& p : units) {
+                        p.capture(lsq->result_tag, lsq->result_val);
+                    }
+                    lsq->capture(lsq->result_tag, lsq->result_val);
+                }
+
+                // Note: The ROB exception flag and ROB ready flag are ALREADY 
+                // set inside lsq->executeCycle(), so we don't need to set them here again.
+
+                lsq->has_result = false; 
+                lsq->has_exception = false;
+                lsq->result_tag = -1; // Reset tag to prevent ghost broadcasts
             }
         }
     };
@@ -323,7 +316,7 @@ public:
         // we will command all hardware units to forward by one cycle, and then we will broadcast the results on CDB if any unit has finished execution in this cycle
         for (auto& u : units) {
             u.executeCycle();   }
-        lsq->executeCycle(Memory); // we need to pass the memory to the LSQ because it needs to perform memory operations for loads and stores
+        lsq->executeCycle(Memory, ROB, rob_head, rob_count); // we need to pass the memory to the LSQ because it needs to perform memory operations for loads and stores
         broadcastOnCDB(); // after we have forwarded all units by one cycle, we will broadcast the results on CDB if any unit has finished execution in this cycle
         for (auto& u: units){
             u.addNew();
@@ -358,7 +351,9 @@ public:
                   }
         }
         else if (robEntry->op==OpCode::SW){
-            Memory[robEntry->store_addr] = robEntry->store_value;
+            if (robEntry->store_addr >= 0 && robEntry->store_addr < int(Memory.size())) {
+                Memory[robEntry->store_addr] = robEntry->store_value;
+            }
         }
         else if (robEntry->dest_reg!=-1 && robEntry->dest_reg!=0){
             ARF[robEntry->dest_reg]= robEntry->value;
